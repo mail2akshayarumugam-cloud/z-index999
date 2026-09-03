@@ -1,0 +1,101 @@
+{
+  "model_type": "RandomForest",
+  "model_version": "ml-v1",
+  "training_date": "2026-09-03T13:00:06.172358+00:00",
+  "dataset_size": 5000,
+  "fraud_ratio": 0.25,
+  "features": [
+    "amount",
+    "amount_to_avg_ratio",
+    "amount_to_max_ratio",
+    "is_new_beneficiary",
+    "beneficiary_age_days",
+    "beneficiary_verified",
+    "txn_hour",
+    "is_unusual_hour",
+    "txn_frequency_24h",
+    "txn_velocity_1h",
+    "user_avg_amount",
+    "user_median_amount",
+    "user_max_amount",
+    "user_total_txns",
+    "user_typical_ben_count",
+    "user_txn_freq_per_week",
+    "days_since_last_txn",
+    "is_new_device",
+    "device_trusted",
+    "recent_password_change",
+    "recent_sim_swap",
+    "recent_email_change",
+    "recent_pin_change",
+    "account_events_48h",
+    "recent_beneficiary_additions_24h",
+    "hive_recipient_flagged",
+    "hive_signal_severity",
+    "hive_hours_since_alert",
+    "hive_scam_category_match",
+    "recipient_suspicious_neighbor_count"
+  ],
+  "feature_count": 30,
+  "train_size": 3500,
+  "val_size": 750,
+  "test_size": 750,
+  "val_metrics": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        562,
+        0
+      ],
+      [
+        0,
+        188
+      ]
+    ]
+  },
+  "test_metrics": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        563,
+        0
+      ],
+      [
+        0,
+        187
+      ]
+    ]
+  },
+  "all_model_comparison": {
+    "LogisticRegression": {
+      "precision": 0.9947,
+      "recall": 0.9894,
+      "f1": 0.992,
+      "roc_auc": 0.9999
+    },
+    "RandomForest": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0
+    },
+    "XGBoost": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0
+    }
+  },
+  "decision_thresholds": {
+    "LOW": "0-39 \u2192 ALLOW",
+    "MEDIUM": "40-69 \u2192 VERIFY",
+    "HIGH": "70-89 \u2192 STRONG_VERIFY",
+    "CRITICAL": "90-100 \u2192 HOLD"
+  }
+}

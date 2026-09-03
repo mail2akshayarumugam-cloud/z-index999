@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.env
+*.db
+dist/
+.pytest_cache/
+*.pkl
+.claude/
+package-lock.json
+.mcp.json
