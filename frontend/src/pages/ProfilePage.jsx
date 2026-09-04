@@ -17,7 +17,7 @@ export default function ProfilePage() {
   }, [user.id])
 
   if (loading) return (
-    <div className="min-h-screen bg-[#0b1120] flex items-center justify-center">
+    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
       <div className="text-center">
         <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3" />
         <p className="text-slate-500 text-sm">Loading profile...</p>
@@ -25,7 +25,7 @@ export default function ProfilePage() {
     </div>
   )
   if (!profile) return (
-    <div className="min-h-screen bg-[#0b1120] flex items-center justify-center">
+    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
       <div className="text-center">
         <svg className="w-12 h-12 text-red-400/50 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
         <p className="text-red-400">Failed to load profile</p>
@@ -34,14 +34,14 @@ export default function ProfilePage() {
   )
 
   return (
-    <div className="min-h-screen bg-[#0b1120] bg-grid">
+    <div className="min-h-screen bg-[#f0f2f5] bg-grid">
       {/* Header */}
       <div className="h-14 glass flex items-center px-5 gap-3 animate-fade-in-down">
         <button onClick={() => navigate('/')} className="w-9 h-9 rounded-xl hover:bg-white/5 flex items-center justify-center transition-all">
           <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </button>
         <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-        <span className="text-sm font-semibold text-slate-200">Profile & Security</span>
+        <span className="text-sm font-semibold text-slate-700">Profile & Security</span>
       </div>
 
       <div className="max-w-2xl mx-auto p-5 space-y-5">
@@ -52,7 +52,7 @@ export default function ProfilePage() {
               {profile.name[0]}
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-slate-100">{profile.name}</h2>
+              <h2 className="text-xl font-bold text-slate-900">{profile.name}</h2>
               <p className="text-sm text-indigo-400 font-mono mt-0.5">{profile.upi}</p>
               <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
@@ -61,7 +61,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-right">
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">Balance</p>
-              <p className="text-2xl font-bold text-slate-100 font-mono tabular-nums mt-0.5">₹{parseFloat(profile.balance).toLocaleString('en-IN')}</p>
+              <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-0.5">₹{parseFloat(profile.balance).toLocaleString('en-IN')}</p>
             </div>
           </div>
         </div>
@@ -98,12 +98,12 @@ export default function ProfilePage() {
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Linked Devices ({profile.devices.length})</h3>
           <div className="space-y-3">
             {profile.devices.map((d, idx) => (
-              <div key={d.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-[#0f172a]/50 border border-[#334155]/50 card-hover animate-fade-in" style={{ animationDelay: `${idx * 80}ms` }}>
+              <div key={d.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-gray-50/50 border border-gray-200/50 card-hover animate-fade-in" style={{ animationDelay: `${idx * 80}ms` }}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${d.trusted ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
                   <svg className={`w-5 h-5 ${d.trusted ? 'text-emerald-400' : 'text-red-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm text-slate-200 font-medium">{d.name}</p>
+                  <p className="text-sm text-slate-700 font-medium">{d.name}</p>
                   <p className="text-[10px] text-slate-500">{d.platform} — last seen {d.last_seen ? new Date(d.last_seen).toLocaleDateString('en-IN') : '—'}</p>
                 </div>
                 <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border ${d.trusted ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
@@ -119,7 +119,7 @@ export default function ProfilePage() {
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Recent Login Activity</h3>
           <div className="space-y-2">
             {profile.login_history.map((l, i) => (
-              <div key={i} className="flex items-center gap-3 py-2.5 border-b border-[#334155]/30 last:border-0">
+              <div key={i} className="flex items-center gap-3 py-2.5 border-b border-gray-200/30 last:border-0">
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${l.event_type === 'login_success' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(52,211,153,0.5)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]'}`} />
                 <span className="text-sm text-slate-400 flex-1">
                   {l.event_type === 'login_success' ? 'Login' : 'Failed login'} from <span className="font-mono text-slate-300">{l.ip_address}</span>
@@ -140,7 +140,7 @@ export default function ProfilePage() {
               { label: 'Model 2 Risk Gate', desc: 'ML pre-transaction risk evaluation', icon: 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5', enabled: true },
               { label: 'Session Timeout', desc: 'Auto-logout after 5 min inactivity', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', enabled: true },
             ].map(s => (
-              <div key={s.label} className="flex items-center gap-3 py-3 border-b border-[#334155]/30 last:border-0">
+              <div key={s.label} className="flex items-center gap-3 py-3 border-b border-gray-200/30 last:border-0">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                   <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d={s.icon} /></svg>
                 </div>

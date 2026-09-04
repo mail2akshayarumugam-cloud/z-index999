@@ -45,14 +45,14 @@ export default function PayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1120] bg-grid flex flex-col">
+    <div className="min-h-screen bg-[#f0f2f5] bg-grid flex flex-col">
       {/* Header */}
       <div className="h-14 glass flex items-center px-5 gap-3 flex-shrink-0 animate-fade-in-down">
         <button
           onClick={() => navigate('/')}
-          className="w-9 h-9 rounded-xl hover:bg-white/5 flex items-center justify-center transition-all"
+          className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all"
         >
-          <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -61,10 +61,10 @@ export default function PayPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
         </div>
-        <span className="text-sm font-semibold text-slate-200">Send Money</span>
+        <span className="text-sm font-semibold text-slate-700">Send Money</span>
         <div className="flex-1" />
-        <span className="text-[10px] bg-indigo-500/15 text-indigo-400 px-3 py-1 rounded-full font-medium border border-indigo-500/20">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400 mr-1.5 animate-pulse" />
+        <span className="text-[10px] bg-indigo-500/10 text-indigo-600 px-3 py-1 rounded-full font-medium border border-indigo-500/20">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1.5 animate-pulse" />
           Model 2 Pre-Check
         </span>
       </div>
@@ -73,7 +73,7 @@ export default function PayPage() {
         <form onSubmit={handlePay} className="w-full max-w-md space-y-5 animate-fade-in-up">
           {/* UPI or Phone */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Pay to
             </label>
             <div className="relative">
@@ -87,7 +87,7 @@ export default function PayPage() {
                 value={upi}
                 onChange={e => setUpi(e.target.value)}
                 placeholder="UPI ID or Mobile Number"
-                className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all font-mono text-sm"
+                className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-white border border-gray-200 text-slate-700 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all font-mono text-sm"
                 required
               />
             </div>
@@ -96,11 +96,11 @@ export default function PayPage() {
 
           {/* Amount */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Amount
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-500">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-400">
                 ₹
               </span>
               <input
@@ -110,7 +110,7 @@ export default function PayPage() {
                 placeholder="0"
                 min="1"
                 step="0.01"
-                className="w-full pl-11 pr-4 py-4 rounded-xl bg-[#0f172a] border border-[#334155] text-3xl font-bold text-slate-200 placeholder-slate-700 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all tabular-nums font-mono"
+                className="w-full pl-11 pr-4 py-4 rounded-xl bg-white border border-gray-200 text-3xl font-bold text-slate-800 placeholder-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all tabular-nums font-mono"
                 required
               />
             </div>
@@ -118,7 +118,7 @@ export default function PayPage() {
 
           {/* Note */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Note <span className="text-slate-600 font-normal">(optional)</span>
             </label>
             <div className="relative">
@@ -132,13 +132,13 @@ export default function PayPage() {
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 placeholder="What's this for?"
-                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm"
+                className="w-full pl-12 pr-4 py-3 rounded-xl bg-white border border-gray-200 text-slate-700 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm"
               />
             </div>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-center gap-2 animate-fade-in">
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 text-sm flex items-center gap-2 animate-fade-in">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>

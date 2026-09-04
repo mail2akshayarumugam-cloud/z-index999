@@ -27,6 +27,9 @@ class Account(Base):
     balance = Column(Numeric(12, 2), default=10000.00)
     account_type = Column(String(30), default="savings")
     upi_id = Column(String(100), unique=True, nullable=True)
+    card_number = Column(String(19), nullable=True)
+    card_expiry = Column(String(5), nullable=True)
+    card_network = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     user = relationship("User", backref="accounts")

@@ -96,7 +96,7 @@ export default function MailMonitor() {
   const safeCount = emails.filter(e => e.is_scam === false).length
 
   return (
-    <div className="min-h-screen bg-[#0b1120] bg-grid">
+    <div className="min-h-screen bg-[#f0f2f5] bg-grid">
       {/* Header */}
       <div className="h-14 glass flex items-center px-5 gap-3 animate-fade-in-down">
         <button onClick={() => navigate('/')} className="w-9 h-9 rounded-xl hover:bg-white/5 flex items-center justify-center transition-all">
@@ -105,7 +105,7 @@ export default function MailMonitor() {
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
         </div>
-        <span className="text-sm font-semibold text-slate-200">Email Monitor</span>
+        <span className="text-sm font-semibold text-slate-700">Email Monitor</span>
         <div className="flex items-center gap-1.5 ml-2">
           <span className={`w-2 h-2 rounded-full ${hiveStatus === 'live' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]' : hiveStatus === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
           <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium border ${
@@ -130,7 +130,7 @@ export default function MailMonitor() {
             className={`rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
               scanning
                 ? 'border-indigo-500/50 bg-indigo-500/5'
-                : 'border-[#334155] hover:border-indigo-500/30 bg-[#0f172a]/50'
+                : 'border-gray-200 hover:border-indigo-500/30 bg-gray-50/50'
             }`}
           >
             {scanning ? (
@@ -152,7 +152,7 @@ export default function MailMonitor() {
                   onPaste={handlePaste}
                   placeholder="Ctrl+V to paste email..."
                   rows={1}
-                  className="w-full mt-3 px-4 py-3 rounded-xl bg-[#0b1120] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 transition-all resize-none text-center"
+                  className="w-full mt-3 px-4 py-3 rounded-xl bg-[#f0f2f5] border border-gray-200 text-slate-700 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 transition-all resize-none text-center"
                 />
               </>
             )}
@@ -210,7 +210,7 @@ export default function MailMonitor() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 animate-fade-in-up">
           <div className="glass rounded-xl p-5 text-center card-hover">
-            <p className="text-3xl font-bold text-slate-200 tabular-nums font-mono">{emails.length}</p>
+            <p className="text-3xl font-bold text-slate-700 tabular-nums font-mono">{emails.length}</p>
             <p className="text-[11px] text-slate-500 mt-1 font-medium uppercase tracking-wide">Total Scanned</p>
           </div>
           <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-5 text-center card-hover">
@@ -264,7 +264,7 @@ export default function MailMonitor() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-slate-200 truncate">{em.subject}</p>
+                          <p className="text-sm font-medium text-slate-700 truncate">{em.subject}</p>
                           {isScam && (
                             <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${
                               em.risk_level === 'CRITICAL' ? 'bg-red-600 text-white' : 'bg-red-500/20 text-red-300 border border-red-500/30'
@@ -290,7 +290,7 @@ export default function MailMonitor() {
 
                   {isSelected && (
                     <div className={`mx-2 p-5 rounded-b-xl border-x border-b space-y-3 animate-fade-in ${
-                      isScam ? 'bg-red-500/5 border-red-500/20' : 'bg-[#1e293b]/50 border-[#334155]'
+                      isScam ? 'bg-red-500/5 border-red-500/20' : 'bg-[#1e293b]/50 border-gray-200'
                     }`}>
                       {em.explanation && <p className="text-sm text-slate-300 leading-relaxed">{em.explanation}</p>}
                       {em.key_indicators?.length > 0 && (

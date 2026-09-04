@@ -8,6 +8,7 @@ import ReviewPage from './pages/ReviewPage'
 import ProfilePage from './pages/ProfilePage'
 import AuthorityDashboard from './pages/AuthorityDashboard'
 import MailMonitor from './pages/MailMonitor'
+import ModelPerformance from './pages/ModelPerformance'
 
 function RequireUser({ children }) {
   const user = getUser()
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/review" element={<RequireUser><ReviewPage /></RequireUser>} />
         <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
         <Route path="/mail" element={<RequireUser><MailMonitor /></RequireUser>} />
+        <Route path="/model" element={<RequireUser><ModelPerformance /></RequireUser>} />
         <Route path="/authority" element={<RequireAuthority><AuthorityDashboard /></RequireAuthority>} />
       </Routes>
     </BrowserRouter>

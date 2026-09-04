@@ -21,7 +21,7 @@
 
 body {
   margin: 0;
-  background-color: #0b1120;
+  background-color: #f0f2f5;
   color: var(--color-text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -38,7 +38,7 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-surface-hover) transparent;
+  scrollbar-color: #d1d5db transparent;
 }
 
 /* Animations */
@@ -114,17 +114,17 @@ body {
 
 /* Glass morphism */
 .glass {
-  background: rgba(30, 41, 59, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(51, 65, 85, 0.5);
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
 .glass-strong {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 /* Grid background pattern */
@@ -166,8 +166,8 @@ body {
   transition: all 0.2s ease;
 }
 .card-hover:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
 }
 
 /* Risk level ring */

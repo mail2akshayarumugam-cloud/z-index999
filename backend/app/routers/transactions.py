@@ -29,6 +29,9 @@ async def get_account(user_id: str, db: AsyncSession = Depends(get_db)):
         "balance": str(account.balance),
         "upi_id": account.upi_id,
         "account_type": account.account_type,
+        "card_number": getattr(account, 'card_number', None),
+        "card_expiry": getattr(account, 'card_expiry', None),
+        "card_network": getattr(account, 'card_network', None),
     }
 
 

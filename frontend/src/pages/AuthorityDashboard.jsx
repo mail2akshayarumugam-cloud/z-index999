@@ -78,10 +78,10 @@ export default function AuthorityDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1120] bg-grid">
+    <div className="min-h-screen bg-[#f0f2f5] bg-grid">
       <div className="bg-glow-red">
         {/* Header */}
-        <div className="h-14 bg-[#0f172a]/80 backdrop-blur-md border-b border-[#1e293b] flex items-center px-4 gap-3 sticky top-0 z-10">
+        <div className="h-14 bg-gray-50/80 backdrop-blur-md border-b border-[#1e293b] flex items-center px-4 gap-3 sticky top-0 z-10">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           </div>
@@ -147,7 +147,7 @@ export default function AuthorityDashboard() {
 
           {/* Pending list */}
           <div>
-            <h2 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
               {pending.length > 0 ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -173,7 +173,7 @@ export default function AuthorityDashboard() {
             ) : (
               <div className="space-y-4">
                 {pending.map((t, idx) => (
-                  <div key={t.transaction_id} className="bg-[#1e293b]/80 backdrop-blur border border-red-500/20 border-l-4 border-l-red-500 rounded-xl overflow-hidden animate-fade-in" style={{ animationDelay: `${idx * 100}ms` }}>
+                  <div key={t.transaction_id} className="bg-white/80 backdrop-blur border border-red-500/20 border-l-4 border-l-red-500 rounded-xl overflow-hidden animate-fade-in" style={{ animationDelay: `${idx * 100}ms` }}>
                     {/* Summary row */}
                     <button
                       onClick={() => setSelected(selected === t.transaction_id ? null : t.transaction_id)}
@@ -183,7 +183,7 @@ export default function AuthorityDashboard() {
                         <MiniGauge score={t.risk_score} level={t.risk_level} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-slate-100 font-mono tabular-nums">₹{parseFloat(t.amount).toLocaleString('en-IN')}</span>
+                            <span className="text-lg font-bold text-slate-900 font-mono tabular-nums">₹{parseFloat(t.amount).toLocaleString('en-IN')}</span>
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: `${RISK_COLORS[t.risk_level]}20`, color: RISK_COLORS[t.risk_level], border: `1px solid ${RISK_COLORS[t.risk_level]}40` }}>{t.risk_level}</span>
                           </div>
                           <p className="text-sm text-slate-400 mt-1 truncate">{t.sender_name} → <span className="font-mono text-slate-300">{t.receiver_upi}</span></p>
@@ -194,7 +194,7 @@ export default function AuthorityDashboard() {
 
                     {/* Expanded detail */}
                     {selected === t.transaction_id && (
-                      <div className="px-5 pb-5 border-t border-[#334155]/50 pt-4 space-y-4 animate-fade-in">
+                      <div className="px-5 pb-5 border-t border-gray-200/50 pt-4 space-y-4 animate-fade-in">
                         {/* Transaction info */}
                         <div className="glass rounded-lg p-4">
                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-3">Transaction Details</p>
@@ -224,7 +224,7 @@ export default function AuthorityDashboard() {
                           <div className="flex items-center gap-4 mb-4">
                             <MiniGauge score={t.risk_score} level={t.risk_level} size={56} />
                             <div className="flex-1">
-                              <div className="h-3 bg-[#0f172a] rounded-full overflow-hidden">
+                              <div className="h-3 bg-gray-50 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${t.risk_score}%`, backgroundColor: RISK_COLORS[t.risk_level] }} />
                               </div>
                               <p className="text-[10px] text-slate-500 mt-1">Score: {t.risk_score}% — Level: {t.risk_level}</p>
@@ -295,7 +295,7 @@ export default function AuthorityDashboard() {
                               </div>
                             )}
                             {t.intelligence.message_snippet && (
-                              <div className="mt-3 p-3 rounded-lg bg-[#0f172a] border border-[#334155]">
+                              <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
                                 <p className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">Original Scam Message</p>
                                 <p className="text-xs text-slate-400 italic leading-relaxed">"{t.intelligence.message_snippet}"</p>
                               </div>
@@ -315,7 +315,7 @@ export default function AuthorityDashboard() {
                           value={rejectReason}
                           onChange={e => setRejectReason(e.target.value)}
                           placeholder="Reason (optional for reject)"
-                          className="w-full px-4 py-2.5 rounded-lg bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                          className="w-full px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
                         />
 
                         {/* Action buttons */}

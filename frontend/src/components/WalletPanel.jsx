@@ -1,7 +1,51 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  KPICard, StatusBreakdownChart, RiskDistributionChart,
+  DailyVolumeChart, ScamTypeChart, AlertSeverityPills, useDashboardStats,
+} from './charts/DashboardCharts'
+import CreditCard from './CreditCard'
 
-const TABS = ['home', 'scan', 'bills', 'history']
+function DonutChart({ percentage, size = 120 }) {
+  const radius = (size - 16) / 2
+  const circumference = 2 * Math.PI * radius
+  const used = Math.min(percentage, 100)
+  const usedColor = used >= 80 ? '#ef4444' : used >= 50 ? '#f59e0b' : '#22c55e'
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth="12" />
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke={usedColor} strokeWidth="12"
+          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - used / 100)}
+          style={{ transition: 'stroke-dashoffset 1.2s ease-out' }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-xl font-extrabold text-slate-900 tabular-nums font-mono">{Math.round(used)}%</span>
+        <span className="text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">Used</span>
+      </div>
+    </div>
+  )
+}
+
+function SpendingRing({ label, amount, target, pct, color }) {
+  return (
+    <div className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-gray-50 transition-all group cursor-default">
+      <div className="flex items-center gap-3">
+        <div className="relative w-10 h-10 flex-shrink-0 group-hover:scale-105 transition-transform">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3.5" />
+            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${pct}, 100`} style={{ transition: 'stroke-dasharray 1s ease-out' }} />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-slate-600">{pct}%</span>
+        </div>
+        <div>
+          <h4 className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{label}</h4>
+          <p className="text-[10px] text-slate-400 font-mono">{amount} / {target}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function WalletPanel({ user, alerts = [], notifications = [] }) {
   const navigate = useNavigate()
@@ -17,11 +61,18 @@ export default function WalletPanel({ user, alerts = [], notifications = [] }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [reporting, setReporting] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [cardInfo, setCardInfo] = useState(null)
+
+  const { stats, loading: statsLoading } = useDashboardStats()
 
   const refreshBalance = useCallback(() => {
     fetch(`/api/transactions/account/${user.id}`)
       .then(r => r.json())
-      .then(d => { setBalance(d.balance); setLastUpdated(new Date()) })
+      .then(d => {
+        setBalance(d.balance)
+        setLastUpdated(new Date())
+        if (d.card_number) setCardInfo({ number: d.card_number, expiry: d.card_expiry, network: d.card_network, upi: d.upi_id })
+      })
       .catch(() => {})
     fetch(`/api/transactions/daily-spending/${user.id}`)
       .then(r => r.json())
@@ -39,7 +90,6 @@ export default function WalletPanel({ user, alerts = [], notifications = [] }) {
 
   useEffect(() => { refreshData() }, [user.id])
   useEffect(() => { if (notifications.length > 0) refreshData() }, [notifications.length])
-
   useEffect(() => {
     const interval = setInterval(refreshBalance, 15000)
     return () => clearInterval(interval)
@@ -85,9 +135,7 @@ export default function WalletPanel({ user, alerts = [], notifications = [] }) {
     if (statusFilter !== 'all' && t.status !== statusFilter) return false
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
-      return (t.beneficiary_upi?.toLowerCase().includes(q) ||
-              t.description?.toLowerCase().includes(q) ||
-              t.amount?.includes(q))
+      return (t.beneficiary_upi?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q) || t.amount?.includes(q))
     }
     return true
   })
@@ -95,389 +143,304 @@ export default function WalletPanel({ user, alerts = [], notifications = [] }) {
   const dailyPct = dailySpending?.percentage || 0
   const dailyColor = dailyPct >= 80 ? '#ef4444' : dailyPct >= 50 ? '#f59e0b' : '#22c55e'
 
+  useEffect(() => { loadHistory(); loadBeneficiaries() }, [user.id])
+
+  const fraudPrevented = stats?.fraud_prevented?.amount || 0
+  const avgRisk = stats?.avg_risk_score || 0
+  const totalTxns = stats?.total_transactions || 0
+  const suspiciousCount = (stats?.risk_level_distribution?.HIGH || 0) + (stats?.risk_level_distribution?.CRITICAL || 0)
+
   return (
-    <div className="h-full flex flex-col bg-[#0b1120] overflow-y-auto">
-      {/* Header */}
-      <div className="p-6 pb-4 bg-glow-indigo">
-        <div className="flex items-center gap-3 mb-5 animate-fade-in">
-          <button onClick={() => navigate('/profile')} className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-105 transition-all">
-            {user.name[0]}
+    <div className="h-full overflow-y-auto p-7 flex flex-col gap-6 bg-[#f0f2f5]">
+
+      {/* Greeting */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 animate-fade-in-up">
+        <div>
+          <h1 className="text-2xl lg:text-[28px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            Welcome back, {user.name.split(' ')[0]} <span className="inline-block" style={{ animation: 'float 2.2s ease-in-out infinite' }}>👋</span>
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">Monitor your UPI transactions and stay protected from scams.</p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <button onClick={refreshData} className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-gray-50 border border-gray-200 hover:bg-gray-100 active:scale-95 text-xs font-semibold text-slate-500 transition-all">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Refresh
           </button>
-          <div className="flex-1">
-            <p className="text-[15px] font-semibold text-slate-100">{user.name}</p>
-            <p className="text-[12px] text-slate-500 font-mono">{user.upi}</p>
-          </div>
-          <button onClick={() => navigate('/profile')} className="w-9 h-9 rounded-lg bg-[#1e293b]/60 hover:bg-[#1e293b] flex items-center justify-center transition-all border border-[#334155]/50">
-            <svg className="w-4.5 h-4.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <button onClick={() => navigate('/pay')} className="flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-400 shadow-sm hover:shadow-lg hover:shadow-emerald-500/20 font-semibold text-xs text-white transition-all active:scale-95">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+            Send Money
           </button>
         </div>
+      </div>
 
-        {/* Balance card */}
-        <div className="glass-strong rounded-2xl p-5 animate-fade-in-up card-hover group">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">Available Balance</p>
-            {lastUpdated && (
-              <p className="text-[10px] text-slate-600">
-                Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
-          </div>
-          <p className="text-[34px] font-extrabold text-slate-50 font-mono tabular-nums leading-tight">
-            {balance !== null ? `₹${parseFloat(balance).toLocaleString('en-IN')}` : (
-              <span className="inline-block w-40 h-8 rounded-lg bg-slate-700/40 animate-pulse" />
-            )}
-          </p>
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <KPICard label="Total Transactions" value={totalTxns} delay={0.1} color="#6366f1"
+          icon={<svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>}
+          subtext={statsLoading ? 'Loading...' : `${stats?.txn_by_status?.committed?.count || 0} successful`} />
+        <KPICard label="Suspicious" value={suspiciousCount} delay={0.2} color="#ef4444"
+          icon={<svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>}
+          subtext={`${stats?.risk_level_distribution?.CRITICAL || 0} critical`} />
+        <KPICard label="Fraud Prevented" value={fraudPrevented} prefix="₹" delay={0.3} color="#f59e0b"
+          icon={<svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>}
+          subtext={`${stats?.fraud_prevented?.count || 0} blocked`} />
+        <KPICard label="Avg Risk" value={avgRisk} suffix="%" decimals={1} delay={0.4}
+          color={avgRisk >= 50 ? '#ef4444' : avgRisk >= 30 ? '#f59e0b' : '#22c55e'}
+          icon={<svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>}
+          subtext="from risk assessments" />
+      </div>
 
-          {dailySpending && (
-            <div className="mt-4">
-              <div className="flex justify-between text-[11px] mb-1.5">
-                <span className="text-slate-500 font-medium">Daily spending limit</span>
-                <span className="text-slate-400 font-mono tabular-nums">
-                  ₹{dailySpending.spent_today.toLocaleString('en-IN')}
-                  <span className="text-slate-600"> / </span>
-                  ₹{dailySpending.daily_limit.toLocaleString('en-IN')}
-                </span>
+      {/* 2-Column Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+        {/* LEFT (8 cols) */}
+        <div className="xl:col-span-8 flex flex-col gap-6">
+
+          {/* Spending + Quick Actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 bg-white rounded-[28px] p-6 shadow-sm border border-gray-200/60 flex flex-col justify-between animate-fade-in-up hover:shadow-lg transition-all group">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-base text-slate-800">Daily Spending</h2>
+                {lastUpdated && <span className="text-[10px] text-slate-400">{lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>}
               </div>
-              <div className="h-2 bg-[#0f172a]/80 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700 ease-out"
-                  style={{
-                    width: `${dailyPct}%`,
-                    background: `linear-gradient(90deg, ${dailyColor}cc, ${dailyColor})`,
-                    boxShadow: `0 0 8px ${dailyColor}40`,
-                  }}
-                />
+              <div className="flex items-center justify-between gap-4 my-auto">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Available</p>
+                    <p className="text-[28px] font-extrabold text-slate-900 font-mono tabular-nums leading-tight">
+                      {balance !== null ? `₹${parseFloat(balance).toLocaleString('en-IN')}` : <span className="inline-block w-32 h-7 rounded-lg bg-gray-200 animate-pulse" />}
+                    </p>
+                  </div>
+                  {dailySpending && (
+                    <div className="text-[11px] text-slate-500">
+                      Spent: <strong className="text-slate-900 font-mono">₹{dailySpending.spent_today.toLocaleString('en-IN')}</strong>
+                      <span className="ml-2">Limit: <strong className="text-slate-900 font-mono">₹{dailySpending.daily_limit.toLocaleString('en-IN')}</strong></span>
+                    </div>
+                  )}
+                </div>
+                <div className="group-hover:scale-105 transition-transform flex-shrink-0"><DonutChart percentage={dailyPct} size={120} /></div>
+              </div>
+              <div className="flex items-center gap-5 mt-5 pt-3 border-t border-gray-200/60 text-[11px] text-slate-500">
+                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: dailyColor }} />Spent ({dailyPct}%)</div>
+                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500/40" />Remaining</div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 bg-white rounded-[28px] p-6 shadow-sm border border-gray-200/60 flex flex-col justify-between animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '80ms' }}>
+              <h2 className="font-bold text-base text-slate-800 mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-3 flex-1">
+                {[
+                  { label: 'Send', sub: 'Pay anyone', color: 'indigo', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8', onClick: () => navigate('/pay') },
+                  { label: 'Scan', sub: 'QR Code', color: 'emerald', icon: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z', onClick: () => handleTab('scan') },
+                  { label: 'Bills', sub: 'Contacts', color: 'cyan', icon: 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z', onClick: () => handleTab('bills') },
+                  { label: 'History', sub: 'All txns', color: 'purple', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', onClick: () => handleTab('history') },
+                ].map(btn => (
+                  <button key={btn.label} onClick={btn.onClick} className={`bg-gray-50/80 rounded-2xl p-3 border border-gray-100 flex items-center gap-2.5 hover:bg-${btn.color}-50 hover:border-${btn.color}-200 hover:-translate-y-1 hover:shadow-md transition-all group/item`}>
+                    <span className={`w-9 h-9 rounded-xl bg-${btn.color}-500/15 flex items-center justify-center group-hover/item:scale-110 transition-all`}>
+                      <svg className={`w-4 h-4 text-${btn.color}-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={btn.icon}/></svg>
+                    </span>
+                    <div><p className="text-[11px] font-bold text-slate-700">{btn.label}</p><p className="text-[9px] text-slate-400">{btn.sub}</p></div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '120ms' }}>
+              <h2 className="font-bold text-sm text-slate-900 mb-4">Risk Level Distribution</h2>
+              {statsLoading ? <div className="h-32 flex items-center justify-center"><div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>
+                : <RiskDistributionChart data={stats?.risk_level_distribution || {}} />}
+            </div>
+            <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '160ms' }}>
+              <h2 className="font-bold text-sm text-slate-900 mb-4">Transaction Volume</h2>
+              {statsLoading ? <div className="h-32 flex items-center justify-center"><div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>
+                : <DailyVolumeChart data={stats?.daily_volume || []} />}
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <section className="bg-white rounded-[28px] p-6 lg:p-7 shadow-sm border border-gray-200/60 animate-fade-in-up min-h-[280px] hover:shadow-md transition-all" style={{ animationDelay: '200ms' }}>
+            {tab === 'scan' && (
+              <div className="animate-fade-in text-center py-6">
+                <h2 className="font-bold text-lg text-slate-900 mb-5">Scan & Pay</h2>
+                <div className="w-48 h-48 mx-auto rounded-2xl bg-white p-3 shadow-lg shadow-gray-200/50 border border-gray-200 animate-scale-up">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 mt-4">{user.name}</p>
+                <p className="text-xs text-slate-400 font-mono mt-1">{user.upi}</p>
+                <p className="text-[10px] text-amber-600 mt-3 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 inline-block">Demo QR only</p>
+                <div className="mt-4"><button onClick={() => navigate('/pay')} className="px-6 py-2.5 rounded-full bg-emerald-50 text-emerald-600 text-sm font-semibold hover:bg-emerald-100 border border-emerald-200 transition-all">Enter UPI manually</button></div>
+              </div>
+            )}
+
+            {(tab === 'history' || tab === 'home') && tab !== 'scan' && tab !== 'bills' && (
+              <div className="animate-fade-in">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="font-bold text-lg text-slate-900">Transaction History</h2>
+                  <button onClick={loadHistory} className="text-[11px] text-indigo-500 hover:text-indigo-600 font-semibold transition-colors">Refresh</button>
+                </div>
+                <div className="flex gap-2 mb-4">
+                  <div className="flex-1 relative">
+                    <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search UPI, description, amount..." className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-slate-700 placeholder-slate-400 text-xs focus:outline-none focus:border-indigo-500/50 transition-colors" />
+                  </div>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-slate-600 text-xs focus:outline-none focus:border-indigo-500/50">
+                    <option value="all">All</option><option value="committed">Committed</option><option value="evaluated">Pending</option><option value="blocked">Blocked</option>
+                  </select>
+                </div>
+                {loadingHistory ? (
+                  <div className="text-center py-12"><div className="w-6 h-6 mx-auto border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>
+                ) : filteredHistory.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm">{searchQuery || statusFilter !== 'all' ? 'No matching transactions' : 'No transactions yet'}</div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db transparent' }}>
+                    {filteredHistory.map(t => {
+                      const amt = parseFloat(t.amount)
+                      const statusColor = t.status === 'committed' ? 'text-emerald-500' : t.status === 'blocked' ? 'text-red-500' : 'text-amber-500'
+                      const riskColor = t.risk_level === 'CRITICAL' ? 'bg-red-600 text-white' : t.risk_level === 'HIGH' ? 'bg-red-500/80 text-white' : t.risk_level === 'MEDIUM' ? 'bg-amber-500/80 text-white' : t.risk_level === 'LOW' ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/20' : null
+                      return (
+                        <div key={t.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-all">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${t.status === 'committed' ? 'bg-emerald-500/10' : t.status === 'blocked' ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
+                            {t.status === 'committed' ? <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              : t.status === 'blocked' ? <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                              : <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-slate-700 font-mono truncate">{t.beneficiary_upi}</p>
+                              {riskColor && <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${riskColor}`}>{t.risk_level}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className={`text-[10px] font-semibold ${statusColor}`}>{t.status}</span>
+                              {t.created_at && <span className="text-[10px] text-slate-400">{new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
+                            </div>
+                          </div>
+                          <p className="text-sm font-bold text-slate-700 flex-shrink-0 font-mono tabular-nums">-₹{amt.toLocaleString('en-IN')}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'bills' && (
+              <div className="animate-fade-in">
+                <h2 className="font-bold text-lg text-slate-900 mb-5">Beneficiaries ({beneficiaries.length})</h2>
+                {loadingBens ? <div className="text-center py-12"><div className="w-6 h-6 mx-auto border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>
+                  : beneficiaries.length === 0 ? <div className="text-center py-12 text-slate-400 text-sm">No beneficiaries found</div>
+                  : <div className="space-y-2">{beneficiaries.map(b => (
+                    <button key={b.id} onClick={() => navigate('/pay')} className="w-full flex items-center gap-3 p-3.5 rounded-2xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all text-left">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/15 flex items-center justify-center text-cyan-600 font-bold text-sm flex-shrink-0">{b.name[0]}</div>
+                      <div className="flex-1 min-w-0"><p className="text-sm text-slate-700 font-medium truncate">{b.name}</p><p className="text-[11px] text-slate-400 font-mono truncate">{b.upi_id}</p></div>
+                      <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${b.verified ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/15 text-amber-600 border border-amber-500/20'}`}>{b.verified ? 'Verified' : 'New'}</span>
+                    </button>
+                  ))}</div>}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* RIGHT (4 cols) */}
+        <div className="xl:col-span-4 flex flex-col gap-6">
+
+          {/* Credit Card — stays dark */}
+          <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-sm text-slate-900">My Card</h2>
+              <span className="text-[10px] text-slate-400">Linked to UPI</span>
+            </div>
+            <CreditCard name={user.name} cardNumber={cardInfo?.number} expiry={cardInfo?.expiry} network={cardInfo?.network} upi={cardInfo?.upi} />
+          </div>
+
+          {/* Alerts */}
+          {alerts.length > 0 && (
+            <div className="bg-red-50 rounded-[28px] p-5 border border-red-200/60 animate-fade-in-up animate-risk-pulse" style={{ animationDelay: '120ms' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                </div>
+                <span className="text-sm font-bold text-red-600">H.I.V.E. Threats ({alerts.length})</span>
+              </div>
+              {alerts.slice(0, 3).map((alert, i) => (
+                <div key={i} className="mb-2 last:mb-0">
+                  <p className="text-xs text-red-600/80">{alert.explanation}</p>
+                  {alert.entities?.upi_ids?.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                      {alert.entities.upi_ids.map((upi, j) => <span key={j} className="text-[10px] px-2 py-0.5 rounded-md bg-red-100 text-red-600 font-mono border border-red-200">{upi}</span>)}
+                      {alert.entities.upi_ids.map((upi, j) => <button key={`r${j}`} onClick={() => reportUpi(upi, alert.type)} disabled={reporting === upi} className="text-[10px] px-2.5 py-1 rounded-md bg-red-600 text-white font-bold hover:bg-red-500 hover:scale-105 transition-all disabled:opacity-50">{reporting === upi ? 'Done' : 'Report'}</button>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Status Breakdown */}
+          <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '160ms' }}>
+            <h2 className="font-bold text-sm text-slate-900 mb-4">Transaction Status</h2>
+            {statsLoading ? <div className="h-24 flex items-center justify-center"><div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>
+              : <StatusBreakdownChart data={stats?.txn_by_status || {}} />}
+          </div>
+
+          {/* Scam Types */}
+          {stats?.scam_type_distribution && Object.keys(stats.scam_type_distribution).length > 0 && (
+            <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '200ms' }}>
+              <h2 className="font-bold text-sm text-slate-900 mb-4">Scam Types Detected</h2>
+              <ScamTypeChart data={stats.scam_type_distribution} />
+            </div>
+          )}
+
+          {/* System Metrics */}
+          <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '240ms' }}>
+            <h2 className="font-bold text-sm text-slate-900 mb-3">System Metrics</h2>
+            <div className="space-y-1">
+              <SpendingRing label="Daily Limit" amount={dailySpending ? `₹${dailySpending.spent_today.toLocaleString('en-IN')}` : '₹0'} target={dailySpending ? `₹${dailySpending.daily_limit.toLocaleString('en-IN')}` : '₹50,000'} pct={dailyPct} color={dailyColor} />
+              <SpendingRing label="Avg Risk Score" amount={`${avgRisk.toFixed(1)}%`} target="of 100" pct={Math.round(avgRisk)} color={avgRisk >= 50 ? '#ef4444' : avgRisk >= 30 ? '#f59e0b' : '#22c55e'} />
+              <SpendingRing label="Verified Contacts" amount={`${beneficiaries.filter(b => b.verified).length}`} target={`${beneficiaries.length} total`} pct={beneficiaries.length > 0 ? Math.round(beneficiaries.filter(b => b.verified).length / beneficiaries.length * 100) : 0} color="#6366f1" />
+            </div>
+          </div>
+
+          {/* Alert Severity */}
+          {stats?.alert_severity && Object.keys(stats.alert_severity).length > 0 && (
+            <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '280ms' }}>
+              <h2 className="font-bold text-sm text-slate-900 mb-3">Alert Severity</h2>
+              <AlertSeverityPills data={stats.alert_severity} />
+            </div>
+          )}
+
+          {/* Notifications */}
+          {(dbNotifs.length > 0 || notifications.length > 0) && (
+            <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-200/60 animate-fade-in-up hover:shadow-md transition-all" style={{ animationDelay: '320ms' }}>
+              <h2 className="font-bold text-sm text-slate-900 mb-3">Recent Alerts</h2>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db transparent' }}>
+                {notifications.map((n, i) => (
+                  <div key={`live-${i}`} className="p-3 rounded-xl bg-red-50 border border-red-200/60">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-50" /><span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" /></span>
+                      <p className="text-xs font-bold text-red-600">{n.title}</p>
+                    </div>
+                    <p className="text-[11px] text-slate-500">{n.body}</p>
+                  </div>
+                ))}
+                {dbNotifs.slice(0, 5).map(n => {
+                  const c = { critical: '#dc2626', high: '#ea580c', warning: '#d97706', info: '#64748b' }
+                  const color = c[n.severity] || c.info
+                  return (
+                    <div key={n.id} className="p-3 rounded-xl border" style={{ backgroundColor: color + '08', borderColor: color + '20' }}>
+                      <p className="text-xs font-bold" style={{ color }}>{n.title}</p>
+                      <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{n.body}</p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
         </div>
-      </div>
-
-      {/* H.I.V.E. alerts */}
-      {alerts.length > 0 && (
-        <div className="px-6 pb-4 animate-fade-in">
-          <div className="bg-red-500/[0.07] border border-red-500/25 rounded-xl p-4 animate-risk-pulse">
-            <div className="flex items-center gap-2 mb-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <svg className="w-4.5 h-4.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-              </div>
-              <span className="text-sm font-bold text-red-400">H.I.V.E. Alert — {alerts.length} threat{alerts.length > 1 ? 's' : ''} detected</span>
-            </div>
-            {alerts.slice(0, 3).map((alert, i) => (
-              <div key={i} className="mb-2.5 last:mb-0">
-                <p className="text-xs text-red-300/90">{alert.explanation}</p>
-                {alert.entities?.upi_ids?.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
-                    {alert.entities.upi_ids.map((upi, j) => (
-                      <span key={j} className="text-[11px] px-2 py-0.5 rounded-md bg-red-500/15 text-red-300 font-mono border border-red-500/20">{upi}</span>
-                    ))}
-                    {alert.entities.upi_ids.map((upi, j) => (
-                      <button
-                        key={`r${j}`}
-                        onClick={() => reportUpi(upi, alert.type)}
-                        disabled={reporting === upi}
-                        className="text-[11px] px-3 py-1 rounded-md bg-red-600 text-white font-bold hover:bg-red-500 hover:scale-105 transition-all disabled:opacity-50 shadow-sm shadow-red-500/20"
-                      >
-                        {reporting === upi ? '✓ Reported' : 'Report UPI'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-            <p className="text-[10px] text-red-400/50 mt-3 pt-2 border-t border-red-500/10">Model 2 will automatically block payments to flagged entities.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="px-6 pb-5">
-        <div className="grid grid-cols-4 gap-3">
-          {/* Send button */}
-          <button
-            onClick={() => navigate('/pay')}
-            className="flex flex-col items-center gap-2.5 p-3.5 rounded-xl bg-[#1e293b]/80 border border-[#334155] hover:border-indigo-500/30 hover:bg-indigo-500/[0.06] hover:scale-[1.03] transition-all group animate-fade-in-up"
-          >
-            <div className="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center group-hover:bg-indigo-500/25 group-hover:shadow-lg group-hover:shadow-indigo-500/10 transition-all">
-              <svg className="w-5.5 h-5.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-            </div>
-            <span className="text-[11px] text-slate-300 font-semibold">Send</span>
-          </button>
-
-          {/* Scan button */}
-          <button
-            onClick={() => handleTab(tab === 'scan' ? 'home' : 'scan')}
-            className={`flex flex-col items-center gap-2.5 p-3.5 rounded-xl border hover:scale-[1.03] transition-all group animate-fade-in-up delay-100 ${
-              tab === 'scan'
-                ? 'bg-emerald-500/[0.08] border-emerald-500/30'
-                : 'bg-[#1e293b]/80 border-[#334155] hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]'
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              tab === 'scan' ? 'bg-emerald-500/20 shadow-lg shadow-emerald-500/10' : 'bg-slate-500/10 group-hover:bg-emerald-500/15'
-            }`}>
-              <svg className={`w-5.5 h-5.5 ${tab === 'scan' ? 'text-emerald-400' : 'text-slate-400 group-hover:text-emerald-400'} transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /></svg>
-            </div>
-            <span className={`text-[11px] font-semibold ${tab === 'scan' ? 'text-emerald-400' : 'text-slate-400'}`}>Scan</span>
-          </button>
-
-          {/* Bills button */}
-          <button
-            onClick={() => handleTab(tab === 'bills' ? 'home' : 'bills')}
-            className={`flex flex-col items-center gap-2.5 p-3.5 rounded-xl border hover:scale-[1.03] transition-all group animate-fade-in-up delay-200 ${
-              tab === 'bills'
-                ? 'bg-cyan-500/[0.08] border-cyan-500/30'
-                : 'bg-[#1e293b]/80 border-[#334155] hover:border-cyan-500/30 hover:bg-cyan-500/[0.04]'
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              tab === 'bills' ? 'bg-cyan-500/20 shadow-lg shadow-cyan-500/10' : 'bg-slate-500/10 group-hover:bg-cyan-500/15'
-            }`}>
-              <svg className={`w-5.5 h-5.5 ${tab === 'bills' ? 'text-cyan-400' : 'text-slate-400 group-hover:text-cyan-400'} transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
-            </div>
-            <span className={`text-[11px] font-semibold ${tab === 'bills' ? 'text-cyan-400' : 'text-slate-400'}`}>Bills</span>
-          </button>
-
-          {/* History button */}
-          <button
-            onClick={() => handleTab(tab === 'history' ? 'home' : 'history')}
-            className={`flex flex-col items-center gap-2.5 p-3.5 rounded-xl border hover:scale-[1.03] transition-all group animate-fade-in-up delay-300 ${
-              tab === 'history'
-                ? 'bg-purple-500/[0.08] border-purple-500/30'
-                : 'bg-[#1e293b]/80 border-[#334155] hover:border-purple-500/30 hover:bg-purple-500/[0.04]'
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              tab === 'history' ? 'bg-purple-500/20 shadow-lg shadow-purple-500/10' : 'bg-slate-500/10 group-hover:bg-purple-500/15'
-            }`}>
-              <svg className={`w-5.5 h-5.5 ${tab === 'history' ? 'text-purple-400' : 'text-slate-400 group-hover:text-purple-400'} transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-            <span className={`text-[11px] font-semibold ${tab === 'history' ? 'text-purple-400' : 'text-slate-400'}`}>History</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="px-6 flex-1 pb-6">
-
-        {/* SCAN tab — QR code */}
-        {tab === 'scan' && (
-          <div className="animate-fade-in">
-            <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">Scan & Pay</h3>
-            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 text-center">
-              <div className="w-52 h-52 mx-auto rounded-2xl bg-white p-3 mb-4 animate-scale-up shadow-xl shadow-black/20">
-                <div className="w-full h-full relative">
-                  <svg viewBox="0 0 100 100" className="w-full h-full">
-                    <rect x="5" y="5" width="25" height="25" rx="3" fill="#1e293b" />
-                    <rect x="8" y="8" width="19" height="19" rx="1" fill="white" />
-                    <rect x="11" y="11" width="13" height="13" rx="1" fill="#1e293b" />
-                    <rect x="70" y="5" width="25" height="25" rx="3" fill="#1e293b" />
-                    <rect x="73" y="8" width="19" height="19" rx="1" fill="white" />
-                    <rect x="76" y="11" width="13" height="13" rx="1" fill="#1e293b" />
-                    <rect x="5" y="70" width="25" height="25" rx="3" fill="#1e293b" />
-                    <rect x="8" y="73" width="19" height="19" rx="1" fill="white" />
-                    <rect x="11" y="76" width="13" height="13" rx="1" fill="#1e293b" />
-                    {[35,40,45,50,55,60].map(x => [5,10,15,35,40,50,55,65,70,80,85,90].map(y => (
-                      <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" fill={((x+y) % 10 < 6) ? '#1e293b' : 'white'} />
-                    )))}
-                    {[5,10,15,20,35,45,55,65,75,85].map(y => [35,40,45,50,55,60].map(x => (
-                      <rect key={`v${x}-${y}`} x={y} y={x} width="4" height="4" fill={((x*y) % 10 < 5) ? '#1e293b' : 'white'} />
-                    )))}
-                    <rect x="70" y="70" width="10" height="10" fill="#1e293b" rx="2" />
-                    <rect x="82" y="70" width="8" height="4" fill="#1e293b" />
-                    <rect x="70" y="82" width="4" height="8" fill="#1e293b" />
-                    <rect x="82" y="82" width="8" height="8" fill="#1e293b" rx="2" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-lg bg-white border-2 border-[#1e293b] flex items-center justify-center">
-                      <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm font-medium text-slate-200">{user.name}</p>
-              <p className="text-xs text-slate-400 font-mono mt-1">{user.upi}</p>
-              <p className="text-[10px] text-amber-400/80 mt-3 px-4 py-1.5 rounded-full bg-amber-500/10 inline-block border border-amber-500/15">This QR is for demo purposes only</p>
-              <div className="mt-4">
-                <button onClick={() => navigate('/pay')} className="px-6 py-2.5 rounded-lg bg-emerald-600/20 text-emerald-400 text-sm font-medium hover:bg-emerald-600/30 transition-colors border border-emerald-500/20">
-                  Enter UPI manually
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* BILLS tab */}
-        {tab === 'bills' && (
-          <div className="animate-fade-in">
-            <h3 className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-3">Beneficiaries ({beneficiaries.length})</h3>
-            {loadingBens ? (
-              <div className="text-center py-8">
-                <div className="w-6 h-6 mx-auto border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
-                <p className="text-slate-500 text-sm mt-3">Loading beneficiaries...</p>
-              </div>
-            ) : beneficiaries.length === 0 ? (
-              <div className="text-center py-8 text-slate-600 text-sm">No beneficiaries found</div>
-            ) : (
-              <div className="space-y-2">
-                {beneficiaries.map((b, i) => (
-                  <button
-                    key={b.id}
-                    onClick={() => navigate('/pay')}
-                    className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-[#1e293b]/80 border border-[#334155] hover:border-cyan-500/30 hover:bg-cyan-500/[0.04] transition-all text-left animate-fade-in"
-                    style={{ animationDelay: `${i * 60}ms` }}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-cyan-500/15 flex items-center justify-center text-cyan-400 font-bold text-sm flex-shrink-0">{b.name[0]}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-200 font-medium truncate">{b.name}</p>
-                      <p className="text-[11px] text-slate-500 font-mono truncate">{b.upi_id}</p>
-                    </div>
-                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${b.verified ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'}`}>
-                      {b.verified ? 'Verified' : 'Unverified'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* HISTORY tab */}
-        {tab === 'history' && (
-          <div className="animate-fade-in">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Transactions ({filteredHistory.length})</h3>
-              <button onClick={loadHistory} className="text-[11px] text-purple-400 hover:text-purple-300 font-medium transition-colors">Refresh</button>
-            </div>
-
-            <div className="flex gap-2 mb-3">
-              <div className="flex-1 relative">
-                <svg className="w-3.5 h-3.5 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search UPI, description, amount..."
-                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-[#1e293b] border border-[#334155] text-slate-200 placeholder-slate-600 text-xs focus:outline-none focus:border-purple-500 transition-colors"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-[#1e293b] border border-[#334155] text-slate-300 text-xs focus:outline-none focus:border-purple-500 transition-colors"
-              >
-                <option value="all">All</option>
-                <option value="committed">Committed</option>
-                <option value="evaluated">Pending</option>
-                <option value="blocked">Blocked</option>
-              </select>
-            </div>
-
-            {loadingHistory ? (
-              <div className="text-center py-8">
-                <div className="w-6 h-6 mx-auto border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                <p className="text-slate-500 text-sm mt-3">Loading transactions...</p>
-              </div>
-            ) : filteredHistory.length === 0 ? (
-              <div className="text-center py-8 text-slate-600 text-sm">{searchQuery || statusFilter !== 'all' ? 'No matching transactions' : 'No transactions yet'}</div>
-            ) : (
-              <div className="space-y-2">
-                {filteredHistory.map((t, i) => {
-                  const amt = parseFloat(t.amount)
-                  const statusColor = t.status === 'committed' ? 'text-green-400' : t.status === 'blocked' ? 'text-red-400' : 'text-amber-400'
-                  const riskColor = t.risk_level === 'CRITICAL' ? 'bg-red-600 text-white' : t.risk_level === 'HIGH' ? 'bg-red-500/80 text-white' : t.risk_level === 'MEDIUM' ? 'bg-amber-500/80 text-white' : t.risk_level === 'LOW' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : null
-                  return (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-3 p-3.5 rounded-xl bg-[#1e293b]/80 border border-[#334155] card-hover animate-fade-in"
-                      style={{ animationDelay: `${i * 40}ms` }}
-                    >
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${t.status === 'committed' ? 'bg-green-500/10' : t.status === 'blocked' ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
-                        {t.status === 'committed' ? (
-                          <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        ) : t.status === 'blocked' ? (
-                          <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-                        ) : (
-                          <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-200 font-mono truncate">{t.beneficiary_upi}</p>
-                          {riskColor && <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${riskColor}`}>{t.risk_level}</span>}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`text-[10px] font-semibold ${statusColor}`}>{t.status}</span>
-                          {t.description && <span className="text-[10px] text-slate-600 truncate">{t.description}</span>}
-                        </div>
-                        {t.created_at && <p className="text-[10px] text-slate-600 mt-0.5">{new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} {new Date(t.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>}
-                      </div>
-                      <p className="text-sm font-bold text-slate-200 flex-shrink-0 font-mono tabular-nums">-₹{amt.toLocaleString('en-IN')}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* HOME tab — Notifications */}
-        {tab === 'home' && (
-          <div className="animate-fade-in">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Notifications</h3>
-            {dbNotifs.length === 0 && notifications.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-[#1e293b]/60 flex items-center justify-center mb-3">
-                  <svg className="w-7 h-7 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                </div>
-                <p className="text-sm text-slate-500 font-medium">No notifications</p>
-                <p className="text-[11px] text-slate-600 mt-1">Scan a message in WhatsApp to see alerts</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {notifications.map((n, i) => (
-                  <div key={`live-${i}`} className="p-3.5 rounded-xl bg-red-500/[0.07] border border-red-500/20 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-50" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
-                      </span>
-                      <p className="text-xs font-bold text-red-400">{n.title}</p>
-                    </div>
-                    <p className="text-[11px] text-slate-400">{n.body}</p>
-                  </div>
-                ))}
-                {dbNotifs.slice(0, 8).map((n, i) => {
-                  const colors = {
-                    critical: { bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.2)', text: '#f87171', icon: '🔴' },
-                    high: { bg: 'rgba(249,115,22,0.06)', border: 'rgba(249,115,22,0.2)', text: '#fb923c', icon: '🟠' },
-                    warning: { bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.2)', text: '#fbbf24', icon: '🟡' },
-                    info: { bg: 'rgba(100,116,139,0.06)', border: 'rgba(100,116,139,0.2)', text: '#94a3b8', icon: '🔵' },
-                  }
-                  const c = colors[n.severity] || colors.info
-                  return (
-                    <div
-                      key={n.id}
-                      className="p-3.5 rounded-xl border animate-fade-in"
-                      style={{ backgroundColor: c.bg, borderColor: c.border, animationDelay: `${i * 60}ms` }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1">
-                          <p className="text-xs font-bold" style={{ color: c.text }}>{n.title}</p>
-                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{n.body}</p>
-                          <p className="text-[10px] text-slate-600 mt-1.5">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</p>
-                        </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
-                          {n.severity}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
