@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUser } from '../user'
 
@@ -9,9 +9,9 @@ export default function MailMonitor() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [scanning, setScanning] = useState(false)
-  const [newEmail, setNewEmail] = useState({ sender: '', subject: '', body: '' })
-  const [showCompose, setShowCompose] = useState(false)
+  const [scanResult, setScanResult] = useState(null)
   const [hiveStatus, setHiveStatus] = useState('checking')
+  const pasteRef = useRef(null)
 
   useEffect(() => {
     async function checkHive() {
@@ -37,25 +37,59 @@ export default function MailMonitor() {
 
   useEffect(() => { loadEmails() }, [user.id])
 
-  async function handleScanEmail(e) {
-    e.preventDefault()
-    if (!newEmail.body.trim()) return
+  async function autoScan(text) {
+    if (!text || text.trim().length < 10) return
     setScanning(true)
+    setScanResult(null)
     try {
-      await fetch('/api/email/analyze', {
+      const resp = await fetch('/api/email/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
-          sender_email: newEmail.sender || 'unknown@sender.com',
-          subject: newEmail.subject || 'No Subject',
-          body: newEmail.body,
+          sender_email: 'scanned@email',
+          subject: 'Pasted Email Scan',
+          body: text,
         }),
       })
-      setNewEmail({ sender: '', subject: '', body: '' })
-      setShowCompose(false)
+      const data = await resp.json()
+      if (data.is_scam) {
+        const upis = data.entities?.upi_ids || []
+        const conf = Math.round(data.confidence * 100)
+        setScanResult({
+          type: 'scam',
+          confidence: conf,
+          upis,
+          scamType: data.scam_type,
+          message: `SCAM DETECTED (${conf}%)${upis.length > 0 ? ` — UPI flagged: ${upis.join(', ')}` : ''}`,
+          indicators: data.key_indicators || [],
+        })
+        if (Notification.permission === 'granted') {
+          new Notification('H.I.V.E. — Scam Detected!', {
+            body: `${data.scam_type?.toUpperCase()} scam (${conf}%)${upis.length > 0 ? `\nUPI blocked: ${upis.join(', ')}` : ''}`,
+            tag: 'hive-scam',
+          })
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission()
+        }
+      } else {
+        setScanResult({ type: 'safe', message: 'Email appears safe — no scam indicators found.' })
+      }
       loadEmails()
-    } catch {} finally { setScanning(false) }
+    } catch (err) {
+      setScanResult({ type: 'error', message: `Scan failed: ${err.message}` })
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  function handlePaste(e) {
+    const text = e.clipboardData?.getData('text') || ''
+    if (text.length > 10) {
+      e.preventDefault()
+      if (pasteRef.current) pasteRef.current.value = ''
+      autoScan(text)
+    }
   }
 
   const scamCount = emails.filter(e => e.is_scam).length
@@ -72,7 +106,6 @@ export default function MailMonitor() {
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
         </div>
         <span className="text-sm font-semibold text-slate-200">Email Monitor</span>
-
         <div className="flex items-center gap-1.5 ml-2">
           <span className={`w-2 h-2 rounded-full ${hiveStatus === 'live' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]' : hiveStatus === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-red-500'}`} />
           <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium border ${
@@ -83,18 +116,97 @@ export default function MailMonitor() {
             H.I.V.E. {hiveStatus === 'live' ? 'CONNECTED' : hiveStatus === 'checking' ? 'checking...' : 'OFFLINE'}
           </span>
         </div>
-
         <div className="flex-1" />
         {scamCount > 0 && (
           <span className="text-[10px] bg-red-500/15 text-red-400 px-2.5 py-1 rounded-full font-bold border border-red-500/20 animate-pulse">{scamCount} threat{scamCount > 1 ? 's' : ''}</span>
         )}
-        <button onClick={() => setShowCompose(!showCompose)} className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-          Scan Email
-        </button>
       </div>
 
       <div className="max-w-4xl mx-auto p-5 space-y-5">
+
+        {/* Auto-Scan Paste Zone — just paste, it scans automatically */}
+        <div className="relative animate-fade-in-up">
+          <div
+            className={`rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+              scanning
+                ? 'border-indigo-500/50 bg-indigo-500/5'
+                : 'border-[#334155] hover:border-indigo-500/30 bg-[#0f172a]/50'
+            }`}
+          >
+            {scanning ? (
+              <div className="flex items-center justify-center gap-3 py-4">
+                <div className="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+                <p className="text-indigo-400 font-semibold">H.I.V.E. scanning email...</p>
+              </div>
+            ) : (
+              <>
+                <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+                  </svg>
+                </div>
+                <p className="text-slate-300 font-semibold text-sm">Paste any email here — H.I.V.E. scans automatically</p>
+                <p className="text-slate-600 text-xs mt-1">Copy the suspicious email from Gmail and press Ctrl+V anywhere on this page</p>
+                <textarea
+                  ref={pasteRef}
+                  onPaste={handlePaste}
+                  placeholder="Ctrl+V to paste email..."
+                  rows={1}
+                  className="w-full mt-3 px-4 py-3 rounded-xl bg-[#0b1120] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 transition-all resize-none text-center"
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Scan Result Banner */}
+        {scanResult && (
+          <div className={`p-5 rounded-2xl border animate-fade-in ${
+            scanResult.type === 'scam' ? 'bg-red-500/10 border-red-500/30 animate-risk-pulse' :
+            scanResult.type === 'safe' ? 'bg-emerald-500/10 border-emerald-500/30' :
+            'bg-amber-500/10 border-amber-500/30'
+          }`}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                {scanResult.type === 'scam' && (
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                  </div>
+                )}
+                {scanResult.type === 'safe' && (
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                  </div>
+                )}
+                <div>
+                  <p className={`text-base font-bold ${scanResult.type === 'scam' ? 'text-red-400' : scanResult.type === 'safe' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {scanResult.message}
+                  </p>
+                  {scanResult.type === 'scam' && scanResult.upis?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {scanResult.upis.map((upi, i) => (
+                        <span key={i} className="text-xs px-2.5 py-1 rounded-lg bg-red-500/20 text-red-300 font-mono border border-red-500/20">{upi}</span>
+                      ))}
+                      <span className="text-xs text-red-400/70 ml-1 self-center">— blocked from payments</span>
+                    </div>
+                  )}
+                  {scanResult.indicators?.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {scanResult.indicators.slice(0, 4).map((ind, i) => (
+                        <p key={i} className="text-xs text-slate-400 flex items-center gap-1.5">
+                          <span className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
+                          {ind}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setScanResult(null)} className="text-slate-600 hover:text-slate-400 text-xs ml-4">Dismiss</button>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 animate-fade-in-up">
           <div className="glass rounded-xl p-5 text-center card-hover">
@@ -111,40 +223,6 @@ export default function MailMonitor() {
           </div>
         </div>
 
-        {/* Compose */}
-        {showCompose && (
-          <form onSubmit={handleScanEmail} className="glass-strong rounded-xl p-6 space-y-4 border-indigo-500/20 animate-fade-in-up">
-            <div className="flex items-center gap-2 mb-1">
-              <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <p className="text-sm font-semibold text-indigo-300">Scan a suspicious email</p>
-            </div>
-            <input type="text" value={newEmail.sender} onChange={e => setNewEmail(p => ({ ...p, sender: e.target.value }))}
-              placeholder="Sender email (e.g. alert@fake-bank.tk)"
-              className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all" />
-            <input type="text" value={newEmail.subject} onChange={e => setNewEmail(p => ({ ...p, subject: e.target.value }))}
-              placeholder="Subject line"
-              className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all" />
-            <textarea value={newEmail.body} onChange={e => setNewEmail(p => ({ ...p, body: e.target.value }))}
-              placeholder="Paste email body here..."
-              rows={5}
-              className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all resize-none" />
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowCompose(false)} className="px-5 py-2.5 rounded-xl border border-[#334155] text-slate-400 text-sm hover:bg-white/5 transition-all">Cancel</button>
-              <button type="submit" disabled={scanning || !newEmail.body.trim()}
-                className="flex-1 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-sm font-semibold disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                {scanning ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Scanning...</> : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                    Scan with H.I.V.E.
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-
         {/* Email list */}
         {loading ? (
           <div className="text-center py-16">
@@ -157,7 +235,7 @@ export default function MailMonitor() {
               <svg className="w-8 h-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
             </div>
             <p className="text-slate-400 font-medium">No emails scanned yet</p>
-            <p className="text-xs text-slate-600 mt-1">Click "Scan Email" to analyze a suspicious message</p>
+            <p className="text-xs text-slate-600 mt-1">Paste a suspicious email above to auto-scan</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -170,7 +248,7 @@ export default function MailMonitor() {
                     onClick={() => setSelected(isSelected ? null : em.id)}
                     className={`w-full text-left p-4 rounded-xl border transition-all ${
                       isScam
-                        ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40 hover:bg-red-500/8'
+                        ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
                         : 'glass hover:border-indigo-500/30'
                     }`}
                   >
@@ -206,9 +284,6 @@ export default function MailMonitor() {
                             {Math.round(em.confidence * 100)}%
                           </p>
                         )}
-                        <p className="text-[10px] text-slate-600">
-                          {em.received_at ? new Date(em.received_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
-                        </p>
                       </div>
                     </div>
                   </button>
@@ -217,9 +292,7 @@ export default function MailMonitor() {
                     <div className={`mx-2 p-5 rounded-b-xl border-x border-b space-y-3 animate-fade-in ${
                       isScam ? 'bg-red-500/5 border-red-500/20' : 'bg-[#1e293b]/50 border-[#334155]'
                     }`}>
-                      {em.explanation && (
-                        <p className="text-sm text-slate-300 leading-relaxed">{em.explanation}</p>
-                      )}
+                      {em.explanation && <p className="text-sm text-slate-300 leading-relaxed">{em.explanation}</p>}
                       {em.key_indicators?.length > 0 && (
                         <div>
                           <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-2">Detection Indicators</p>
@@ -238,7 +311,7 @@ export default function MailMonitor() {
                       {isScam && (
                         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/15 text-xs text-red-300 flex items-start gap-2">
                           <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-                          Any UPIs, phone numbers, or URLs in this email have been flagged. Model 2 will block payments to these entities.
+                          Any UPIs in this email have been flagged. Model 2 will block payments to these entities.
                         </div>
                       )}
                     </div>

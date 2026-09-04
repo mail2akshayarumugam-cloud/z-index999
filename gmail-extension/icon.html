@@ -1,0 +1,12 @@
+<canvas id="c" width="48" height="48"></canvas>
+<script>
+const c = document.getElementById('c').getContext('2d');
+c.fillStyle = '#6366f1';
+c.beginPath(); c.arc(24, 24, 22, 0, Math.PI * 2); c.fill();
+c.fillStyle = 'white'; c.font = 'bold 28px Arial';
+c.textAlign = 'center'; c.textBaseline = 'middle';
+c.fillText('🛡', 24, 24);
+document.getElementById('c').toBlob(b => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'icon.png'; a.click();
+});
+</script>

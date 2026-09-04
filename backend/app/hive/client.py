@@ -124,13 +124,14 @@ _SCAM_INDICATORS = {
 
 
 def _extract_entities(text: str) -> ExtractedEntities:
-    lower = text.lower()
+    clean = re.sub(r'[*_~`]', '', text)
+    lower = clean.lower()
     return ExtractedEntities(
-        upi_ids=_UPI_PATTERN.findall(text),
-        phone_numbers=_PHONE_PATTERN.findall(text),
-        urls=_URL_PATTERN.findall(text),
+        upi_ids=_UPI_PATTERN.findall(clean),
+        phone_numbers=_PHONE_PATTERN.findall(clean),
+        urls=_URL_PATTERN.findall(clean),
         bank_names=[b for b in _BANK_NAMES if b in lower],
-        amounts=_AMOUNT_PATTERN.findall(text),
+        amounts=_AMOUNT_PATTERN.findall(clean),
     )
 
 
