@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUser } from '../user'
+import UpiExtractChat from '../components/UpiExtractChat'
 
 export default function MailMonitor() {
   const user = getUser()
@@ -11,6 +12,8 @@ export default function MailMonitor() {
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const [hiveStatus, setHiveStatus] = useState('checking')
+  const [extractionDismissed, setExtractionDismissed] = useState(false)
+  const [lastScannedText, setLastScannedText] = useState('')
   const pasteRef = useRef(null)
 
   useEffect(() => {
@@ -63,7 +66,11 @@ export default function MailMonitor() {
           scamType: data.scam_type,
           message: `SCAM DETECTED (${conf}%)${upis.length > 0 ? ` — UPI flagged: ${upis.join(', ')}` : ''}`,
           indicators: data.key_indicators || [],
+          detection: data,
+          needsExtraction: data.needs_upi_extraction && !upis.length,
         })
+        setExtractionDismissed(false)
+        setLastScannedText(text)
         if (Notification.permission === 'granted') {
           new Notification('H.I.V.E. — Scam Detected!', {
             body: `${data.scam_type?.toUpperCase()} scam (${conf}%)${upis.length > 0 ? `\nUPI blocked: ${upis.join(', ')}` : ''}`,
@@ -202,8 +209,27 @@ export default function MailMonitor() {
                   )}
                 </div>
               </div>
-              <button onClick={() => setScanResult(null)} className="text-slate-600 hover:text-slate-400 text-xs ml-4">Dismiss</button>
+              <button onClick={() => { setScanResult(null); setExtractionDismissed(false) }} className="text-slate-600 hover:text-slate-400 text-xs ml-4">Dismiss</button>
             </div>
+
+            {scanResult.needsExtraction && !extractionDismissed && scanResult.detection && (
+              <div className="mt-3">
+                <UpiExtractChat
+                  detection={scanResult.detection}
+                  userId={user.id}
+                  originalMessage={lastScannedText}
+                  onComplete={(upis) => {
+                    setScanResult(prev => ({
+                      ...prev,
+                      upis,
+                      needsExtraction: false,
+                      message: `SCAM DETECTED (${prev.confidence}%) — UPI flagged: ${upis.join(', ')}`,
+                    }))
+                  }}
+                  onDismiss={() => setExtractionDismissed(true)}
+                />
+              </div>
+            )}
           </div>
         )}
 

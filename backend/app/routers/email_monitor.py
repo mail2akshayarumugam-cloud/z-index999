@@ -29,6 +29,8 @@ async def analyze_email(request: EmailAnalyzeRequest, db: AsyncSession = Depends
         sender=request.sender_email,
         source="email",
     )
+    upi_ids = result.get("entities", {}).get("upi_ids", [])
+    result["needs_upi_extraction"] = result.get("is_scam", False) and not upi_ids
     return result
 
 

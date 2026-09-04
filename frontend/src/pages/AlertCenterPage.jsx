@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import UpiExtractChat from '../components/UpiExtractChat'
 
 const USER_ID = 'user-arjun'
 const SEVERITY_STYLES = {
@@ -15,6 +16,7 @@ export default function AlertCenterPage() {
   const [hiveMessage, setHiveMessage] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
+  const [extractionDismissed, setExtractionDismissed] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -76,6 +78,21 @@ export default function AlertCenterPage() {
               <div className="mt-3 p-3 rounded bg-[#0f172a] text-xs">
                 <p className="text-indigo-400 font-semibold">Notification sent to user + Bank Risk Signal created</p>
                 <p className="text-slate-500 mt-1">{analysisResult.notification.title}</p>
+              </div>
+            )}
+
+            {analysisResult.is_scam && analysisResult.needs_upi_extraction && !analysisResult.entities?.upi_ids?.length && !extractionDismissed && (
+              <div className="mt-3">
+                <UpiExtractChat
+                  detection={analysisResult}
+                  userId={USER_ID}
+                  originalMessage={hiveMessage}
+                  onComplete={(upis) => {
+                    setAnalysisResult(prev => ({ ...prev, entities: { ...prev.entities, upi_ids: upis }, needs_upi_extraction: false }))
+                    fetch(`/api/risk/signals/${USER_ID}?hours=72`).then(r => r.json()).then(setSignals).catch(() => {})
+                  }}
+                  onDismiss={() => setExtractionDismissed(true)}
+                />
               </div>
             )}
           </div>

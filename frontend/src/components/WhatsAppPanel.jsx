@@ -1,14 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
+import UpiExtractChat from './UpiExtractChat'
 
 export default function WhatsAppPanel({ user, onAlert, onNotification }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [analyzing, setAnalyzing] = useState(null)
+  const [pendingHoneypots, setPendingHoneypots] = useState([])
+  const [activeHoneypots, setActiveHoneypots] = useState({})
+  const [dismissedSessions, setDismissedSessions] = useState(new Set())
   const chatEndRef = useRef(null)
+  const pendingPollRef = useRef(null)
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, pendingHoneypots, activeHoneypots])
+
+  useEffect(() => {
+    async function pollPending() {
+      try {
+        const resp = await fetch('/api/hive/honeypots/pending')
+        const data = await resp.json()
+        setPendingHoneypots(data || [])
+      } catch {}
+    }
+    pollPending()
+    pendingPollRef.current = setInterval(pollPending, 5000)
+    return () => clearInterval(pendingPollRef.current)
+  }, [])
 
   async function handleSend() {
     if (!input.trim() || analyzing) return
@@ -50,6 +68,13 @@ export default function WhatsAppPanel({ user, onAlert, onNotification }) {
           timestamp: new Date().toISOString(),
         })
         onNotification?.(data.notification)
+
+        if (data.honeypot_session_id) {
+          setActiveHoneypots(prev => ({
+            ...prev,
+            [msgId]: data.honeypot_session_id,
+          }))
+        }
       }
     } catch {
       setMessages(prev =>
@@ -67,6 +92,12 @@ export default function WhatsAppPanel({ user, onAlert, onNotification }) {
     }
   }
 
+  function dismissSession(sessionId) {
+    setDismissedSessions(prev => new Set([...prev, sessionId]))
+  }
+
+  const visiblePending = pendingHoneypots.filter(p => !dismissedSessions.has(p.session_id))
+
   return (
     <div className="h-full flex flex-col bg-[#0b141a]">
       {/* Header */}
@@ -78,29 +109,66 @@ export default function WhatsAppPanel({ user, onAlert, onNotification }) {
         </div>
         <div className="flex-1">
           <p className="text-sm font-medium text-[#e9edef]">Messages</p>
-          <p className="text-[11px] text-[#8696a0]">Paste messages to scan</p>
+          <p className="text-[11px] text-[#8696a0]">Auto-monitored via H.I.V.E.</p>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[10px] text-emerald-400 font-medium">H.I.V.E.</span>
         </div>
+        {visiblePending.length > 0 && (
+          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-500/30 animate-pulse">
+            {visiblePending.length} pending
+          </span>
+        )}
       </div>
 
       {/* Chat */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ backgroundColor: '#0b141a' }}>
-        {messages.length === 0 && (
+        {messages.length === 0 && visiblePending.length === 0 && (
           <div className="flex justify-center mt-8">
             <div className="bg-[#1d2b36] rounded-lg px-4 py-3 max-w-[300px] text-center">
               <svg className="w-8 h-8 text-emerald-400/50 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <p className="text-[12px] text-[#8696a0] leading-relaxed">
-                Paste a suspicious WhatsApp message here. H.I.V.E. will analyze it and save flagged entities to the database for Model 2.
+                H.I.V.E. is monitoring WhatsApp via the Chrome extension. Scam detections will appear here automatically.
+              </p>
+              <p className="text-[10px] text-[#8696a0]/60 mt-2">
+                You can also paste messages manually below.
               </p>
             </div>
           </div>
         )}
 
+        {/* Pending honeypots from auto-sync */}
+        {visiblePending.map(p => (
+          <UpiExtractChat
+            key={p.session_id}
+            detection={{
+              detection_id: p.detection_id,
+              scam_type: p.scam_type,
+              risk_level: p.risk_level,
+              confidence: p.confidence,
+            }}
+            userId={user.id}
+            originalMessage={p.message_preview}
+            sessionId={p.session_id}
+            onComplete={(upis) => {
+              onAlert?.({
+                id: p.detection_id,
+                type: p.scam_type,
+                confidence: p.confidence,
+                risk_level: p.risk_level,
+                entities: { upi_ids: upis },
+                explanation: 'UPI extracted via honeypot',
+                timestamp: new Date().toISOString(),
+              })
+            }}
+            onDismiss={() => dismissSession(p.session_id)}
+          />
+        ))}
+
+        {/* Manually scanned messages */}
         {messages.map(msg => (
           <div key={msg.id}>
             <div className="flex justify-start">
@@ -180,6 +248,34 @@ export default function WhatsAppPanel({ user, onAlert, onNotification }) {
               </div>
             )}
 
+            {/* Auto-show honeypot for manual scans with no UPI */}
+            {msg.analysis?.needs_upi_extraction
+              && !msg.analysis.entities?.upi_ids?.length
+              && activeHoneypots[msg.id]
+              && !dismissedSessions.has(activeHoneypots[msg.id]) && (
+              <UpiExtractChat
+                detection={msg.analysis}
+                userId={user.id}
+                originalMessage={msg.text}
+                sessionId={activeHoneypots[msg.id]}
+                onComplete={(upis) => {
+                  setMessages(prev => prev.map(m =>
+                    m.id === msg.id
+                      ? {
+                          ...m,
+                          analysis: {
+                            ...m.analysis,
+                            entities: { ...m.analysis.entities, upi_ids: upis },
+                            needs_upi_extraction: false,
+                          },
+                        }
+                      : m
+                  ))
+                }}
+                onDismiss={() => dismissSession(activeHoneypots[msg.id])}
+              />
+            )}
+
             {msg.error && (
               <p className="mt-1 ml-1 text-[11px] text-red-400">Analysis failed — is the backend running?</p>
             )}
@@ -194,7 +290,7 @@ export default function WhatsAppPanel({ user, onAlert, onNotification }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Paste a suspicious message..."
+          placeholder="Paste a suspicious message (or H.I.V.E. auto-detects via extension)..."
           rows={1}
           className="flex-1 bg-[#2a3942] text-[#e9edef] placeholder-[#8696a0] text-[13px] rounded-lg px-3 py-2.5 resize-none focus:outline-none max-h-28 overflow-y-auto"
           style={{ minHeight: '40px' }}

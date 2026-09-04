@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import async_session
 from app.models.financial import RiskSignalV2, ScamIntelligence
 from app.hive.client import _extract_entities, _extract_intelligence, ExtractedEntities
+from app.services.upi_extraction import queue_honeypot
 
 _seen_ids = set()
 _running = False
@@ -117,6 +118,18 @@ async def _sync_once():
                         entities.urls.append(url)
 
             intel = _extract_intelligence(message_text, entities, scam_type) if message_text else None
+
+            if not entities.upi_ids and message_text:
+                queue_honeypot(
+                    detection_id=det_id,
+                    user_id="user-arjun",
+                    scam_type=scam_type,
+                    risk_level=risk_level,
+                    confidence=confidence,
+                    original_message=message_text,
+                    sender=det.get("sender", ""),
+                    source="sync",
+                )
 
             for upi in entities.upi_ids:
                 existing = await db.execute(

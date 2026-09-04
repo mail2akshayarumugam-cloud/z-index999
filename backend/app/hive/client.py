@@ -284,7 +284,9 @@ async def analyze_message(message: str) -> AnalysisResult:
 
     Tries the live H.I.V.E. API first. Falls back to local heuristics
     if H.I.V.E. is unreachable (e.g. during development/testing).
+    Always extracts entities and intelligence from the original message.
     """
+    result: AnalysisResult | None = None
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
@@ -296,8 +298,14 @@ async def analyze_message(message: str) -> AnalysisResult:
                 },
             )
             if resp.status_code == 200:
-                return _parse_hive_response(resp.json())
+                result = _parse_hive_response(resp.json())
     except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError):
         pass
 
-    return _local_analyze(message)
+    if result is None:
+        return _local_analyze(message)
+
+    result.entities = _extract_entities(message)
+    if result.is_scam:
+        result.intelligence = _extract_intelligence(message, result.entities, result.scam_type)
+    return result
