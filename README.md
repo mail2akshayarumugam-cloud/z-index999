@@ -58,6 +58,8 @@ python -m pytest tests/ -q    # 35 tests, all passing
 ```
 
 ---
+<img width="1637" height="961" alt="ChatGPT Image Sep 3, 2026, 09_54_24 PM (1)" src="https://github.com/user-attachments/assets/eb5e8562-7809-4cc0-8e19-d76bdf29ad7e" />
+
 
 ## Demo Credentials
 
